@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Traveling Salesman Problem Solver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        canvas {
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto">
+        <h1 class="text-3xl font-bold text-center mb-6">Traveling Salesman Problem Solver</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">City Management</h2>
+                <div class="space-y-4">
+                    <div class="flex space-x-2">
+                        <button onclick="solver.clearCities()" class="flex-1 bg-red-500 text-white p-2 rounded">
+                            Clear All Cities
+                        </button>
+                        <button onclick="solver.removeLastCity()" class="flex-1 bg-yellow-500 text-white p-2 rounded">
+                            Remove Last City
+                        </button>
+                    </div>
+                    <p class="text-sm text-gray-600">
+                        👉 Click on the canvas to add cities
+                    </p>
+                </div>
+
+                <div id="cityList" class="mt-4">
+                    <h3 class="font-medium">Cities:</h3>
+                    <ul id="citiesDisplay" class="list-disc pl-5"></ul>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Solution Methods</h2>
+                <div class="space-y-4">
+                    <button onclick="solveExactMethod()" class="w-full bg-green-500 text-white p-2 rounded">
+                        Exact Method (Brute Force)
+                    </button>
+                    <button onclick="solveHeuristicMethod()" class="w-full bg-purple-500 text-white p-2 rounded">
+                        Heuristic Method
+                    </button>
+                </div>
+
+                <div id="results" class="mt-4 p-4 bg-gray-100 rounded">
+                    <h3 class="font-medium">Results</h3>
+                    <p id="resultText" class="text-sm">Solution will appear here</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Visualization</h2>
+            <canvas id="mapCanvas" width="800" height="500" class="mx-auto border-2 border-gray-300"></canvas>
+        </div>
+    </div>
+
+    <script>
+        class TravelingSalesmanSolver {
+            constructor() {
+                this.canvas = document.getElementById('mapCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.cities = [];
+                
+                // Add click event listener to canvas
+                this.canvas.addEventListener('click', (event) => this.addCityOnClick(event));
+            }
+
+            // Get mouse position relative to canvas
+            getMousePosition(event) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top
+                };
+            }
+
+            addCityOnClick(event) {
+                const pos = this.getMousePosition(event);
+                this.addCity(pos.x, pos.y);
+            }
+
+            addCity(x, y) {
+                // Prevent adding too many cities
+                if (this.cities.length >= 10) {
+                    alert('Maximum 10 cities allowed');
+                    return;
+                }
+
+                this.cities.push({ x, y });
+                this.updateCityList();
+                this.drawMap();
+            }
+
+            removeLastCity() {
+                if (this.cities.length > 0) {
+                    this.cities.pop();
+                    this.updateCityList();
+                    this.drawMap();
+                }
+            }
+
+            clearCities() {
+                this.cities = [];
+                this.updateCityList();
+                this.drawMap();
+                document.getElementById('resultText').textContent = 'Solution will appear here';
+            }
+
+            updateCityList() {
+                const list = document.getElementById('citiesDisplay');
+                list.innerHTML = this.cities.map((city, index) => 
+                    `<li>City ${index + 1}: (${Math.round(city.x)}, ${Math.round(city.y)})</li>`
+                ).join('');
+            }
+
+            drawMap() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.cities.forEach((city, index) => {
+                    // Draw city as a circle
+                    this.ctx.beginPath();
+                    this.ctx.arc(city.x, city.y, 10, 0, 2 * Math.PI);
+                    this.ctx.fillStyle = 'red';
+                    this.ctx.fill();
+                    
+                    // Label cities
+                    this.ctx.fillStyle = 'black';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.fillText(`City ${index + 1}`, city.x + 15, city.y);
+                });
+            }
+
+            calculateDistance(city1, city2) {
+                return Math.sqrt(
+                    Math.pow(city2.x - city1.x, 2) + 
+                    Math.pow(city2.y - city1.y, 2)
+                );
+            }
+
+            // Rest of the methods remain the same as in the previous implementation
+            exactMethod() {
+                if (this.cities.length < 2) {
+                    alert('Please add at least 2 cities');
+                    return null;
+                }
+
+                const indices = this.cities.map((_, i) => i);
+                const permutations = this.generatePermutations(indices);
+                
+                let bestCycle = null;
+                let minCost = Infinity;
+
+                for (let perm of permutations) {
+                    const cycle = [...perm, perm[0]];
+                    const cost = this.calculateCycleCost(cycle);
+
+                    if (cost < minCost) {
+                        minCost = cost;
+                        bestCycle = cycle;
+                    }
+                }
+
+                return { cycle: bestCycle, cost: minCost };
+            }
+
+            heuristicMethod() {
+                if (this.cities.length < 2) {
+                    alert('Please add at least 2 cities');
+                    return null;
+                }
+
+                const unvisited = this.cities.map((_, i) => i);
+                const cycle = [unvisited.shift()];
+                
+                while (unvisited.length > 0) {
+                    const last = cycle[cycle.length - 1];
+                    const nearestIndex = unvisited.reduce((nearest, current) => 
+                        this.calculateDistance(this.cities[last], this.cities[current]) <
+                        this.calculateDistance(this.cities[last], this.cities[nearest]) 
+                        ? current : nearest
+                    );
+                    
+                    cycle.push(nearestIndex);
+                    unvisited.splice(unvisited.indexOf(nearestIndex), 1);
+                }
+
+                cycle.push(cycle[0]);
+                const cost = this.calculateCycleCost(cycle);
+
+                return { cycle, cost };
+            }
+
+            calculateCycleCost(cycle) {
+                return cycle.slice(0, -1).reduce((total, cityIndex, i) => 
+                    total + this.calculateDistance(
+                        this.cities[cityIndex], 
+                        this.cities[cycle[i + 1]]
+                    ), 0
+                );
+            }
+
+            generatePermutations(arr) {
+                if (arr.length <= 1) return [arr];
+                
+                const result = [];
+                for (let i = 0; i < arr.length; i++) {
+                    const current = arr[i];
+                    const remaining = arr.slice(0, i).concat(arr.slice(i + 1));
+                    const permsOfRemaining = this.generatePermutations(remaining);
+                    
+                    for (let perm of permsOfRemaining) {
+                        result.push([current, ...perm]);
+                    }
+                }
+                return result;
+            }
+
+            drawSolution(cycle) {
+                this.drawMap();
+                this.ctx.beginPath();
+                this.ctx.strokeStyle = 'green';
+                this.ctx.lineWidth = 3;
+
+                cycle.forEach((cityIndex, i) => {
+                    const city = this.cities[cityIndex];
+                    
+                    if (i === 0) this.ctx.moveTo(city.x, city.y);
+                    else this.ctx.lineTo(city.x, city.y);
+                });
+
+                this.ctx.stroke();
+            }
+        }
+
+        const solver = new TravelingSalesmanSolver();
+
+        function solveExactMethod() {
+            const start = performance.now();
+            const result = solver.exactMethod();
+            const end = performance.now();
+
+            if (result) {
+                document.getElementById('resultText').innerHTML = 
+                    `Exact Method<br>` +
+                    `Cycle: ${result.cycle.map(i => `City ${i + 1}`).join(' → ')}<br>` +
+                    `Total Cost: ${result.cost.toFixed(2)}<br>` +
+                    `Execution Time: ${(end - start).toFixed(2)} ms`;
+                
+                solver.drawSolution(result.cycle);
+            }
+        }
+
+        function solveHeuristicMethod() {
+            const start = performance.now();
+            const result = solver.heuristicMethod();
+            const end = performance.now();
+
+            if (result) {
+                document.getElementById('resultText').innerHTML = 
+                    `Heuristic Method<br>` +
+                    `Cycle: ${result.cycle.map(i => `City ${i + 1}`).join(' → ')}<br>` +
+                    `Total Cost: ${result.cost.toFixed(2)}<br>` +
+                    `Execution Time: ${(end - start).toFixed(2)} ms`;
+                
+                solver.drawSolution(result.cycle);
+            }
+        }
+    </script>
+</body>
+</html>
